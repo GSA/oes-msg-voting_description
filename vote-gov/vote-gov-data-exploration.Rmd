@@ -13,18 +13,29 @@ library(tidyr)
 library(dplyr)
 library(stringr)
 library(ggplot2)
+library(RItools)
 ```
 
 
-```{r data sets}
-#2020_EAVS_for_Public_Release_nolabel_V2.csv
-#County.csv
-#cps_00001.csv
+```{r load data sets}
+#EAC Dataset:
+regdat <- read_csv("2020_EAVS_for_Public_Release_nolabel_V2.csv") #load dataset from EAC website https://www.eac.gov/research-and-data/datasets-codebooks-and-surveys)
+###can also try: 
+###regdat <- read_csv(here::here("vote-gov","2020_EAVS_for_Public_Release_nolabel_V2.csv"))
+###
+###County Census dataset:
+County <- read_csv("County.csv")
+###can also try:
+###County <- read_csv(here::here("vote-gov","County.csv"))
+###
+###CPS 2020 dataset:
+cps20 <- read_csv("cps_00002.csv")
+###can also try:
+###cps20 <- read_csv(here::here("vote-gov","cps_00002.csv"))
 ```
 
 
 ```{r EAC data}
-X2020_EAVS_for_Public_Release_nolabel_V2 <- read_csv("2020_EAVS_for_Public_Release_nolabel_V2.csv") #load dataset from EAC website https://www.eac.gov/research-and-data/datasets-codebooks-and-surveys)
 
 regdat <- X2020_EAVS_for_Public_Release_nolabel_V2 %>% select(FIPSCode:B4Comments) #subset variable of interest. From first variable, FIPSCode to B4comments.
 
@@ -54,7 +65,6 @@ regdat[regdat$Jurisdiction_Name== "ST. CLAIR COUNTY",]
 ```
 
 ```{r ACS VAP by race and ethnicity data}
-County <- read_csv("County.csv")
 tail(regdat$FIPSCode)
 tail(County$geoid) #changing to be same format
 class(County$geoid)
@@ -69,8 +79,7 @@ County <- pivot_wider(County, names_from = "lntitle", values_from = "cvap_est")
 ```
 
 ```{r CPS}
-cps20 <- read_csv("cps_00002.csv")
-cps20
+
 ```
 
 
