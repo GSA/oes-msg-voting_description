@@ -24,23 +24,21 @@ regdat <- read_csv(here::here("Data","2020_EAVS_for_Public_Release_nolabel_V2.cs
 #load dataset from EAC website https://www.eac.gov/research-and-data/datasets-codebooks-and-surveys)
 
 ###County Census dataset:
-County <- read_csv("County.csv")
-###can also try:
-###County <- read_csv(here::here("vote-gov","County.csv"))
+County <- read_csv(here::here("Data","County.csv"))
 ###
 ###CPS 2020 dataset:
-cps20 <- read_csv("cps_00002.csv")
-###can also try:
-###cps20 <- read_csv(here::here("vote-gov","cps_00002.csv"))
+cps20 <- read_csv(here::here("Data","cps_00002.csv"))
 ```
 
 
 ```{r EAC data}
 
-regdat <- X2020_EAVS_for_Public_Release_nolabel_V2 %>% select(FIPSCode:B4Comments) #subset variable of interest. From first variable, FIPSCode to B4comments.
+regdat <- regdat %>% select(FIPSCode:B4Comments) #subset variable of interest. From first variable, FIPSCode to B4comments.
 
 sum(duplicated(regdat$Jurisdiction_Name)) #some counties in US have same name in different states
-duplicated(regdat$FIPSCode) #better to use FIPSCode
+table(duplicated(regdat$FIPSCode),exclude=c()) #better to use FIPSCode
+table(regdat$FIPSCode=="") #better to use FIPSCode
+table(nchar(regdat$FIPSCode)) ## counties should be 5 digits
 
 #exploring voter registration totals
 regdat$totreg <- regdat$A1a #change A1a to totreg (total registered voters)
