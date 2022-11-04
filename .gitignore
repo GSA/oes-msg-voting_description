@@ -284,3 +284,4 @@ TSWLatexianTemp*
 *.lpz
 
 .DS_Store
+renv/settings.dcf
