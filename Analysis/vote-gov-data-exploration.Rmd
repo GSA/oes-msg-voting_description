@@ -14,15 +14,15 @@ library(dplyr)
 library(stringr)
 library(ggplot2)
 library(RItools)
+library(here)
 ```
 
 
 ```{r load data sets}
 #EAC Dataset:
-regdat <- read_csv("2020_EAVS_for_Public_Release_nolabel_V2.csv") #load dataset from EAC website https://www.eac.gov/research-and-data/datasets-codebooks-and-surveys)
-###can also try: 
-###regdat <- read_csv(here::here("vote-gov","2020_EAVS_for_Public_Release_nolabel_V2.csv"))
-###
+regdat <- read_csv(here::here("Data","2020_EAVS_for_Public_Release_nolabel_V2.csv"))
+#load dataset from EAC website https://www.eac.gov/research-and-data/datasets-codebooks-and-surveys)
+
 ###County Census dataset:
 County <- read_csv("County.csv")
 ###can also try:
