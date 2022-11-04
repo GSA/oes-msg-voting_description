@@ -1,0 +1,242 @@
+---
+title: "votegov-data-exploration"
+author: "Katie Worrall"
+date: "2022-10-18"
+output: pdf_document
+---
+
+
+```{r load packages}
+#load packages
+library(readr)
+library(tidyr)
+library(dplyr)
+library(stringr)
+library(ggplot2)
+```
+
+
+```{r data sets}
+#2020_EAVS_for_Public_Release_nolabel_V2.csv
+#County.csv
+#cps_00001.csv
+```
+
+
+```{r EAC data}
+X2020_EAVS_for_Public_Release_nolabel_V2 <- read_csv("2020_EAVS_for_Public_Release_nolabel_V2.csv") #load dataset from EAC website https://www.eac.gov/research-and-data/datasets-codebooks-and-surveys)
+
+regdat <- X2020_EAVS_for_Public_Release_nolabel_V2 %>% select(FIPSCode:B4Comments) #subset variable of interest. From first variable, FIPSCode to B4comments.
+
+sum(duplicated(regdat$Jurisdiction_Name)) #some counties in US have same name in different states
+duplicated(regdat$FIPSCode) #better to use FIPSCode
+
+#exploring voter registration totals
+regdat$totreg <- regdat$A1a #change A1a to totreg (total registered voters)
+regdat$totact <- regdat$A1b #change A1b to totact (total registered active voters)
+regdat$totinact <- regdat$A1c #change A1c to totinact (total registered inactive voters)
+regdat$perctinact <- (regdat$totinact)/(regdat$totreg)
+order(regdat$perctinact) #why is it not showing perctinact??
+regdat$onlineinvalid <- regdat$A7c #change a7c to onlineinvalid 
+regdat$onlinedupe <- regdat$A6c #change a6c to online duplicates
+max(regdat$onlinedupe, na.rm = T) #high amount of duplicates online 
+mean(regdat$onlinedupe, na.rm = T)
+regdat[regdat$onlinedupe == 127272,] #CA, Solano County
+regdat[regdat$perctinact == 1,] #lots of no response
+regdat[regdat$totreg == -88,] #I wonder ND does not keep track of voter reg because people don't really need to register? 
+##looks like Kalawao County (smallest county in the US by land area, 436 pop)
+##UOCAVA is overseas voters 
+regdat[regdat$perctinact == -Inf, ] 
+regdat$perctinact <- replace(regdat$perctinact, -Inf, 0) #why won't this work?
+regdat[regdat$perctinact == -Inf, ] 
+mean(regdat$perctinact, na.rm = T)
+regdat[regdat$Jurisdiction_Name== "ST. CLAIR COUNTY",]
+```
+
+```{r ACS VAP by race and ethnicity data}
+County <- read_csv("County.csv")
+tail(regdat$FIPSCode)
+tail(County$geoid) #changing to be same format
+class(County$geoid)
+County$geoid <- str_sub(County$geoid, start= 10L, end = 15L) #remove everything before S
+County$geoid <- str_pad(County$geoid, width = 10, side = "right", pad = "0") #add five 0
+#check they match
+tail(regdat$FIPSCode)
+tail(County$geoid)
+colnames(County)
+County <- County %>% select("geoname", "geoid", "lntitle", "cvap_est")
+County <- pivot_wider(County, names_from = "lntitle", values_from = "cvap_est")
+```
+
+```{r CPS}
+cps20 <- read_csv("cps_00002.csv")
+cps20
+```
+
+
+```{r merge}
+vregdat <- left_join(regdat, County, by = c("FIPSCode" = "geoid")) #merge datasets
+colnames(vregdat)
+vregdat <- vregdat %>% select("FIPSCode", "Jurisdiction_Name", "State_Full", "State_Abbr",
+															"totreg",
+															"totact","geoname", "Total","Not Hispanic or Latino",
+															"American Indian or Alaska Native Alone","Asian Alone",
+															"Black or African American Alone",
+															"Native Hawaiian or Other Pacific Islander Alone","White Alone",
+															"American Indian or Alaska Native and White",
+															"Asian and White","Black or African American and White",
+															"American Indian or Alaska Native and Black or African American",
+															"Remainder of Two or More Race Responses",
+															"Hispanic or Latino") #subset
+colnames(vregdat)
+vregdat
+vregdat$perctreg_tot <- (vregdat$totreg)/(vregdat$Total) #total registered
+vregdat$perctvpa_black <- vregdat$`Black or African American Alone`/vregdat$Total
+vregdat$perctvpa_nativeamerican <- vregdat$`American Indian or Alaska Native Alone`/vregdat$Total
+vregdat$perctvpa_hispanic <- vregdat$`Hispanic or Latino`/vregdat$Total
+vregdat$perctvpa_asian <- vregdat$`Asian Alone`/vregdat$Total
+vregdat #there are obviously some errors in the reporting of the EAC dataset
+County[County$geoid == "1717500000",] #error
+regdat[regdat$FIPSCode == 1717500000,] #error
+regdat[regdat$Jurisdiction_Name == "STARK COUNTY",] #error
+vregdat <- vregdat[vregdat$perctreg_tot > 0,] #getting rid of values outside 0-100
+vregdat <- vregdat[vregdat$perctreg_tot < 1,] #getting rid of values outside 0-100
+min(vregdat$perctreg_tot, na.rm =  T)
+quantile(vregdat$perctreg_tot, na.rm = T)
+vregdat[order(vregdat$perctreg_tot, decreasing = F),]
+```
+
+
+```{r figure}
+vreg_freqplot <- ggplot(data = vregdat, mapping = aes(perctreg_tot)) +
+	geom_histogram() #frequency of voter registration rates by county
+vreg_freqplot
+ggplot(data = vregdat, mapping = aes(perctreg_tot, perctvpa_black)) +
+	geom_point()
+ggplot(data = vregdat, mapping = aes(perctreg_tot, perctvpa_nativeamerican)) +
+	geom_point()
+ggplot(data = vregdat, mapping = aes(perctreg_tot, perctvpa_hisp)) +
+	geom_point()
+ggplot(data = vregdat, mapping = aes(perctreg_tot, perctvpa_asian)) +
+	geom_point()
+vregdat[order(vregdat$perctvpa_nativeamerican, decreasing = T),]
+
+```
+
+
+```{r table}
+
+```
+
+
+
+Important Variables:
+A1: Registered Voters
+A2: Same day voter registration
+A4-7: source of voter registration
+A9: removed from voter rolls
+B1-4: data on military voter registration
+
+From codebook:
+FIPS        
+Jurisdiction Name       
+State Name (Full)      
+State Name (Abbreviation)      
+A1a Total Reg      
+A1b Total Active      
+A1c Total Inactive      
+A2a Total SDR      
+A2b Election Day SDR     
+A2c SDR Prior To Election Day   
+A4a Mail Total      
+A4b In-person Total      
+A4c ****Online Total      
+A4d DMV Total      
+A4e NVRA Mandated Total     
+A4f Disabilities Agency Total     
+A4g Armed Forces Total     
+A4h Non-NVRA Mandated Total     
+A4i Registered Drives Total     
+A4-7j Other Text      
+A4j Other       
+A4-7k Other Text      
+A4k Other       
+A4-7l Other Text      
+A4l Other       
+A5a Mail New Reg     
+A5b In-person New Reg     
+A5c *****Online New Reg     
+A5d DMV New Reg     
+A5e NVRA Mandated New Reg    
+A5f Disabilities Agency New Reg    
+A5g Armed Forces New Reg    
+A5h Non-NVRA Mandated New Reg    
+A5i Registered Drives New Reg    
+A4-7j Other Text      
+A5j Other       
+A4-7k Other Text      
+A5k Other       
+A4-7l Other Text      
+A5l Other       
+A6a Mail Dupes      
+A6b In-person Dupes      
+A6c ****Online Dupes      
+A6d DMV Dupes      
+A6e NVRA Mandated Dupes     
+A6f Disabilities Agency Dupes     
+A6g Armed Forces Dupes     
+A6h Non-NVRA Mandated Dupes     
+A6i Registered Drives Dupes     
+A4-7j Other Text      
+A6j Other       
+A4-7k Other Text      
+A6k Other       
+A4-7l Other Text      
+A6l Other       
+A7a Mail Invalid      
+A7b In-person Invalid      
+***A7c Online Invalid      
+A7d DMV Invalid      
+A7e NVRA Mandated Invalid     
+A7f Disabilities Agency Invalid     
+A7g Armed Forces Invalid     
+A7h Non-NVRA Mandated Invalid     
+A7i Registered Drives Invalid     
+A4-7j Other Text      
+A7j Other       
+A4-7k Other Text      
+A7k Other       
+A4-7l Other Text      
+A7l Other       
+A4_A7 Comments       
+A9e Removed Fail Response   
+
+##could potentially be important:
+A8a Notifications Total      
+A8b Notifications Received Confirming     
+Notifications Received Invalidating      
+A8d Notifications Returned Undeliverable     
+A8e Notifications Status Unknown     
+A8f Other Text      
+A8f Other       
+A8g Other Text      
+A8g Other       
+A8h Other Text      
+A8h Other       
+A8 Comments       
+
+##military:
+B1a Total Reg      
+B1b Uniformed Service Total     
+B1c Non-military Total      
+B1 Comments       
+B2a Total FPCA      
+B2b Uniformed Service Total     
+B2c Non-military Total      
+B2 Comments       
+B3a Rejected FPCA Total     
+B3b Uniformed Service Rejected Total    
+B3c Non-military Rejected Total     
+B3 Comments       
+B4a Late FPCA Total     
+B4 Comments  
