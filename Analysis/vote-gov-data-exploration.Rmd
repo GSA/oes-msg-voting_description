@@ -128,6 +128,7 @@ ggplot(data = vregdat, mapping = aes(perctreg_tot, perctvpa_hisp)) +
 	geom_point()
 ggplot(data = vregdat, mapping = aes(perctreg_tot, perctvpa_asian)) +
 	geom_point()
+vregdat[order(vregdat$perctvpa_nativeamerican, decreasing = T),]
 
 ```
 
