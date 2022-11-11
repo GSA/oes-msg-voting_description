@@ -25,7 +25,8 @@ regdat <- read_csv(here::here("Data","2020_EAVS_for_Public_Release_nolabel_V2.cs
 
 ###County Census dataset:
 County <- read_csv(here::here("Data","County.csv"))
-###
+County
+###Citizen Voting Age Population (CVAP) Special Tabulation From the 2016-2020 5-Year American Community Survey (ACS)
 ###CPS 2020 dataset:
 cps20 <- read_csv(here::here("Data","cps_00002.csv"))
 ```
@@ -39,13 +40,15 @@ sum(duplicated(regdat$Jurisdiction_Name)) #some counties in US have same name in
 table(duplicated(regdat$FIPSCode),exclude=c()) #better to use FIPSCode
 table(regdat$FIPSCode=="") #better to use FIPSCode
 table(nchar(regdat$FIPSCode)) ## counties should be 5 digits
+regdat$FIPSCode <- str_pad(regdat$FIPSCode, 10, side = "right", pad = "0") #make all the same width
+View(regdat)
 
 #exploring voter registration totals
 regdat$totreg <- regdat$A1a #change A1a to totreg (total registered voters)
 regdat$totact <- regdat$A1b #change A1b to totact (total registered active voters)
 regdat$totinact <- regdat$A1c #change A1c to totinact (total registered inactive voters)
 regdat$perctinact <- (regdat$totinact)/(regdat$totreg)
-order(regdat$perctinact) #why is it not showing perctinact??
+regdat$perctinact #why is it not showing perctinact??
 regdat$onlineinvalid <- regdat$A7c #change a7c to onlineinvalid 
 regdat$onlinedupe <- regdat$A6c #change a6c to online duplicates
 max(regdat$onlinedupe, na.rm = T) #high amount of duplicates online 
@@ -59,21 +62,27 @@ regdat[regdat$perctinact == -Inf, ]
 regdat$perctinact <- replace(regdat$perctinact, -Inf, 0) #why won't this work?
 regdat[regdat$perctinact == -Inf, ] 
 mean(regdat$perctinact, na.rm = T)
+regdat[regdat$totact == -88, ] #North Dakota and New Hampshire did not share/have data
 regdat[regdat$Jurisdiction_Name== "ST. CLAIR COUNTY",]
+regdat #the problems are the states where they don't have a county system. It does not match with the county data set. 
+##these are MA, CT, RI, AK, ME, NH..
+##the problem with data seems to be that elections are not always run by county clerks, so this both county data, and city data. 
 ```
 
 ```{r ACS VAP by race and ethnicity data}
-tail(regdat$FIPSCode)
 tail(County$geoid) #changing to be same format
-class(County$geoid)
+table(nchar(County$geoid))
 County$geoid <- str_sub(County$geoid, start= 10L, end = 15L) #remove everything before S
 County$geoid <- str_pad(County$geoid, width = 10, side = "right", pad = "0") #add five 0
 #check they match
 tail(regdat$FIPSCode)
 tail(County$geoid)
+County$geoid
 colnames(County)
+unique(regdat$State_Abbr)
 County <- County %>% select("geoname", "geoid", "lntitle", "cvap_est")
 County <- pivot_wider(County, names_from = "lntitle", values_from = "cvap_est")
+County
 ```
 
 ```{r CPS}
@@ -97,20 +106,32 @@ vregdat <- vregdat %>% select("FIPSCode", "Jurisdiction_Name", "State_Full", "St
 															"Hispanic or Latino") #subset
 colnames(vregdat)
 vregdat
+vregdat[vregdat$State_Full == "CT",]
 vregdat$perctreg_tot <- (vregdat$totreg)/(vregdat$Total) #total registered
 vregdat$perctvpa_black <- vregdat$`Black or African American Alone`/vregdat$Total
 vregdat$perctvpa_nativeamerican <- vregdat$`American Indian or Alaska Native Alone`/vregdat$Total
 vregdat$perctvpa_hispanic <- vregdat$`Hispanic or Latino`/vregdat$Total
 vregdat$perctvpa_asian <- vregdat$`Asian Alone`/vregdat$Total
-vregdat #there are obviously some errors in the reporting of the EAC dataset
-County[County$geoid == "1717500000",] #error
+#there are some errors in the reporting of the EAC dataset
+
 regdat[regdat$FIPSCode == 1717500000,] #error
 regdat[regdat$Jurisdiction_Name == "STARK COUNTY",] #error
+regdat[regdat$Jurisdiction_Name == "SCHUYLER COUNTY",]
 vregdat <- vregdat[vregdat$perctreg_tot > 0,] #getting rid of values outside 0-100
 vregdat <- vregdat[vregdat$perctreg_tot < 1,] #getting rid of values outside 0-100
 min(vregdat$perctreg_tot, na.rm =  T)
 quantile(vregdat$perctreg_tot, na.rm = T)
 vregdat[order(vregdat$perctreg_tot, decreasing = F),]
+
+
+##figuring out what's going on here with the added values
+sum(is.na(vregdat$totreg))
+sum(is.na(vregdat$Total))
+missingdat <- vregdat[is.na(vregdat$Total),]
+missingdat %>% group_by(State_Abbr) %>%
+	summarise(n()) #these are the states we are missing in our analysis
+#in order to inlcude them, I will need to find city population values. 
+
 ```
 
 
@@ -126,8 +147,9 @@ ggplot(data = vregdat, mapping = aes(perctreg_tot, perctvpa_hisp)) +
 	geom_point()
 ggplot(data = vregdat, mapping = aes(perctreg_tot, perctvpa_asian)) +
 	geom_point()
-vregdat[order(vregdat$perctvpa_nativeamerican, decreasing = T),]
 
+vregdat_2 <- vregdat %>% select(Jurisdiction_Name, geoname, perctreg_tot) #better way of viewing data
+View(vregdat_2[order(vregdat_2$perctreg_tot, decreasing = F),]) #ignore the ones where geoname and jurisdiction name do not match 
 ```
 
 
