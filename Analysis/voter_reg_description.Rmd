@@ -1,0 +1,131 @@
+---
+title: Voter Registration by Counties
+author: Jake and Katie
+---
+
+```{r}
+library(here)
+library(tidyverse)
+library(usmap)
+library(maptools)
+library(readxl)
+
+library(tigris)
+library(tmap)
+library(tmaptools)
+
+library(maps)
+library(mapdata)
+```
+
+
+```{r}
+load(file=here::here("Analysis","vregdat1.rda"),verbose=TRUE)
+vregdat1$fips <- vregdat1$FIPSCode
+vregdat1$state <- vregdat1$State_Abbr
+
+```
+
+What counties have the lowest voter registration rates overall? (Here are the
+lowest 100 out of `r nrow(vregdat1)`.
+
+```{r}
+
+vregdat1  %>% dplyr::select(geoname,State_Abbr,tot_est_Total,same_day_state,automatic_state,vratereg,cvap_est_Total,totreg,totact) %>% arrange(vratereg) %>% print(.,n=100)
+
+```
+
+What are the 100 lowest registration counties among stats with neither same day
+nor automatic registration?
+
+
+
+```{r}
+
+vregdat1  %>% filter(same_day_state==0 & automatic_state==0) %>% dplyr::select(geoname,State_Abbr,tot_est_Total,vratereg,cvap_est_Total,totreg,totact) %>% arrange(vratereg) %>% print(.,n=100)
+
+```
+
+Is there variation within Pennsylvania and/or Utah in registration by County?
+
+```{r}
+
+vregdat1  %>% filter(State_Abbr %in% c("PA","UT")) %>%
+ dplyr::select(geoname,State_Abbr,tot_est_Total,vratereg,cvap_est_Total,totreg,totact) %>%
+ arrange(State_Abbr,vratereg) %>% print(.,n=100)
+
+vregdat1  %>% filter(State_Abbr %in% c("PA","UT")) %>% group_by(State_Abbr) %>% summarize(min(vratereg),quantile(vratereg,.25),median(vratereg),quantile(vratereg,.75),max(vratereg))
+
+
+bp_dat <- vregdat1 %>% filter(!is.na(vratereg) & vratereg < 2) %>% mutate(mean_reg = mean(vratereg,na.rm=TRUE)) %>% arrange(State_Abbr,desc(mean_reg))
+
+```
+
+Boxplot:
+
+```{r}
+
+vregdat1$same_day_stateF <- factor(vregdat1$same_day_state,labels=c("Same Day Reg","No Same Day Reg"))
+vregdat1$automatic_stateF <- factor(vregdat1$automatic_state,labels=c("Automatic Reg","No Automatic Reg"))
+bplot_dat <- vregdat1 %>% group_by(State_Abbr) %>% filter(!is.na(vratereg) & vratereg < 2 & State_Abbr!="DC") %>% summarize(min=min(vratereg),q25=quantile(vratereg,.25),med=median(vratereg),mean=mean(vratereg),q75=quantile(vratereg,.75),max=max(vratereg),easy_reg=unique(interaction(same_day_stateF,automatic_stateF))) %>% arrange(desc(med)) %>% print(n=100)
+bplot_dat$stateF <- factor(bplot_dat$State_Abbr)
+
+bp <-  ggplot(bplot_dat) +
+    geom_boxplot(aes(y=reorder(stateF,mean),
+                 xmax = max,
+                 xupper = q75,
+                 x = med,
+                 xmiddle = med,
+                 xlower = q25,
+                 xmin = min), stat = "identity") +
+         theme_bw() +
+         facet_wrap(~easy_reg,scales="free")+
+         xlim(.1,1.2) +
+         ylab("") +
+         xlab("Proportion of Citizen of Voting Age Registered to Vote (EAC+Census Data)")
+bp
+
+ggsave(bp,file=here::here("Analysis","state_reg_boxplot.png"),dpi=600)
+
+```
+
+
+
+```{r}
+
+map_dat <- vregdat1 %>% dplyr::select(fips,vratereg,same_day_state,automatic_state,state) %>% filter(vratereg < 2)
+map_dat$vratereg_rank <- rank(map_dat$vratereg)
+
+full_map_rank <- plot_usmap(regions="counties",data=map_dat,values="vratereg_rank")
+
+full_map_rank
+
+not_same_not_auto_map_rank <- plot_usmap(regions="counties",data=filter(map_dat,same_day_state==0&automatic_state==0),values="vratereg_rank")
+not_same_not_auto_map_rank
+
+
+not_same_not_auto_map <- plot_usmap(regions="counties",data=filter(map_dat,same_day_state==0&automatic_state==0),values="vratereg")
+not_same_not_auto_map
+
+not_same_not_auto_map
+
+small_map <- plot_usmap(regions="counties",
+    data=filter(map_dat,state %in% c("PA","UT")),
+    include=c("PA","UT"),
+    values="vratereg")+
+scale_fill_continuous(
+    low = "white", high = "blue", name = "% Reg (2020)", label = scales::comma
+)
+
+small_map_2 <- small_map + coord_cartesian() + facet_grid(cols=vars(state), drop = T, scales="free_x", space="free_x")
+
+
+usa_counties <- map_data('county')
+usa_counties <- left_join(
+
+```
+
+
+
+
+
