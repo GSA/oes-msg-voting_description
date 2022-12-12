@@ -7,7 +7,7 @@ output: pdf_document
 
 
 ```{r load packages}
-#load packages
+# load packages
 library(readr)
 library(tidyr)
 library(dplyr)
@@ -19,81 +19,89 @@ library(here)
 
 
 ```{r load data sets}
-#EAC Dataset:
-regdat <- read_csv(here::here("Data","2020_EAVS_for_Public_Release_nolabel_V2.csv"))
-#load dataset from EAC website https://www.eac.gov/research-and-data/datasets-codebooks-and-surveys)
+# EAC Dataset:
+regdat <- read_csv(here::here("Data", "2020_EAVS_for_Public_Release_nolabel_V2.csv"))
+# load dataset from EAC website https://www.eac.gov/research-and-data/datasets-codebooks-and-surveys)
 
-###County Census dataset:
-County <- read_csv(here::here("Data","County.csv"))
+### County Census dataset:
+County <- read_csv(here::here("Data", "County.csv"))
 County
+## Just checking to see if tot_est made sense:
+County %>% filter(grepl("Champaign",geoname))
+
 place <- read_csv(here::here("Data", "Place.csv"))
-###Citizen Voting Age Population (CVAP) Special Tabulation From the 2016-2020 5-Year American Community Survey (ACS)
-###CPS 2020 dataset:
-cps20 <- read_csv(here::here("Data","cps_00002.csv"))
+### Citizen Voting Age Population (CVAP) Special Tabulation From the 2016-2020 5-Year American Community Survey (ACS)
+### CPS 2020 dataset:
+cps20 <- read_csv(here::here("Data", "cps_00002.csv"))
 ```
 
 
 ```{r EAC data}
+regdat <- regdat %>% select(FIPSCode:B4Comments) # subset variable of interest. From first variable, FIPSCode to B4comments.
 
-regdat <- regdat %>% select(FIPSCode:B4Comments) #subset variable of interest. From first variable, FIPSCode to B4comments.
-
-sum(duplicated(regdat$Jurisdiction_Name)) #some counties in US have same name in different states
-table(duplicated(regdat$FIPSCode),exclude=c()) #better to use FIPSCode
-table(regdat$FIPSCode=="") #better to use FIPSCode
-table(nchar(regdat$FIPSCode)) 
+sum(duplicated(regdat$Jurisdiction_Name)) # some counties in US have same name in different states
+table(duplicated(regdat$FIPSCode), exclude = c()) # better to use FIPSCode
+table(regdat$FIPSCode == "") # better to use FIPSCode
+table(nchar(regdat$FIPSCode))
 ## counties should be 5 digits
-regdat$FIPSCode <- str_pad(regdat$FIPSCode, 10, side = "right", pad = 0) #first need to make them all the same width of 10, then truncate them down to 5
-table(nchar(regdat$FIPSCode)) 
-regdat$FIPSCode <- str_sub(regdat$FIPSCode, end = 5) #make all the same width
-table(nchar(regdat$FIPSCode)) #make sure all the FIPScodes are only 5 characters
+regdat$FIPSCode <- str_pad(regdat$FIPSCode, 10, side = "right", pad = 0) # first need to make them all the same width of 10, then truncate them down to 5
+table(nchar(regdat$FIPSCode))
+regdat$FIPSCode <- str_sub(regdat$FIPSCode, end = 5) # make all the same width
+table(nchar(regdat$FIPSCode)) # make sure all the FIPScodes are only 5 characters
 regdat$FIPSCode
-#exploring voter registration totals
-regdat$totreg <- regdat$A1a #change A1a to totreg (total registered voters)
-regdat$totact <- regdat$A1b #change A1b to totact (total registered active voters)
-##according to Stewart's paper, A1b is the best one to use: https://electionlab.mit.edu/research/voter-registration 
+# exploring voter registration totals
+regdat$totreg <- regdat$A1a # change A1a to totreg (total registered voters)
+regdat$totact <- regdat$A1b # change A1b to totact (total registered active voters)
+## according to Stewart's paper, A1b is the best one to use: https://electionlab.mit.edu/research/voter-registration
 
-regdat$onlineinvalid <- regdat$A7c #change a7c to onlineinvalid 
-regdat$onlinedupe <- regdat$A6c #change a6c to online duplicates
-max(regdat$onlinedupe, na.rm = T) #high amount of duplicates online 
+regdat$onlineinvalid <- regdat$A7c # change a7c to onlineinvalid
+regdat$onlinedupe <- regdat$A6c # change a6c to online duplicates
+max(regdat$onlinedupe, na.rm = T) # high amount of duplicates online
 mean(regdat$onlinedupe, na.rm = T)
-regdat[regdat$onlinedupe == 127272,] #CA, Solano County
-regdat[regdat$totreg == -88,] #ND does not have voter registration
-##looks like Kalawao County (smallest county in the US by land area, 436 pop)
-##UOCAVA is overseas voters 
-regdat[regdat$totact == -88, ] #North Dakota 
+regdat[regdat$onlinedupe == 127272 & !is.na(regdat$onlinedupe), ] # CA, Solano County
+regdat[regdat$totreg == -88, ] # ND does not have voter registration
+with(regdat[regdat$totreg == -88, ],table(State_Abbr,exclude=c()))
+## looks like Kalawao County (smallest county in the US by land area, 436 pop)
+## UOCAVA is overseas voters
+regdat[regdat$totact == -88, ] # North Dakota
+with(regdat[regdat$totact == -88, ],table(State_Abbr,exclude=c()))
 regdat2 <- regdat %>% select("FIPSCode", "State_Abbr", "totact", "Jurisdiction_Name", "totreg")
 
-#remove Wisconsin
+# remove Wisconsin
 regdat2 <- regdat2 %>% filter(State_Abbr != "WI")
 
-##fixing Wisconsin 
+## fixing Wisconsin
 regdatWI <- regdat %>% filter(State_Abbr == "WI")
-regdatWI$Jurisdiction_Name <- sub('.*?[--]', '', regdatWI$Jurisdiction_Name)
-regdatWI$FIPSCode <- as.numeric(regdatWI$FIPSCode) #turn numeric so I can include a fake FIPScode to replace later
+regdatWI$Jurisdiction_Name <- sub(".*?[--]", "", regdatWI$Jurisdiction_Name)
+regdatWI$FIPSCode <- as.numeric(regdatWI$FIPSCode) # turn numeric so I can include a fake FIPScode to replace later
 regdatWI
-regdatWI <- regdatWI %>% group_by(Jurisdiction_Name, State_Abbr) %>%
-	summarise(totreg = sum(totreg), FIPSCode = sum(FIPSCode), totact = sum(totact))
-regdatWI$FIPSCode <- as.character(regdatWI$FIPSCode) #back to character class for replacement
+regdatWI <- regdatWI %>%
+  group_by(Jurisdiction_Name, State_Abbr) %>%
+  summarise(totreg = sum(totreg), FIPSCode = sum(FIPSCode), totact = sum(totact),.groups="drop")
+regdatWI$FIPSCode <- as.character(regdatWI$FIPSCode) # back to character class for replacement
 regdatWI$Jurisdiction_Name <- str_squish(regdatWI$Jurisdiction_Name)
-regdatWI %>% filter(Jurisdiction_Name == "MULTIPLE COUNTIES")#this is an error in the WI data, a bunch of voter registration were just put in this observation. I am not sure which county these are for.
-regdatWI <- regdatWI %>% filter(Jurisdiction_Name != "MULTIPLE COUNTIES") #removing for now.
+regdatWI %>% filter(Jurisdiction_Name == "MULTIPLE COUNTIES") # this is an error in the WI data, a bunch of voter registration were just put in this observation. I am not sure which county these are for.
+regdatWI <- regdatWI %>% filter(Jurisdiction_Name != "MULTIPLE COUNTIES") # removing for now.
 regdatWI <- regdatWI %>% filter(Jurisdiction_Name != "LAKES - VILAS COUNTY")
-regdatWI$FIPSCode <- c(55001,55003,55005,55007,55009,55011,
-55013,55015,55017,55019,55021,55023,55025,55027,55029,55031,55033,55035,55037,55039,55041,55043,55045,
-55047,55049,55051,55053,55055,55057,55059,	55061,55063,55065,55067,55069,55071,55073,55075,55077,
-55078,55079,55081,55083,55085,55087,55089,55091,55093,55095,55097,55099,55101,55103,55105,55107,55109,
-55111,55113,55115,55117,55119,55121,55123,55125,55127,55129,55131,55133,55135,55137,55139,55141) #replace FIPSCodes
+# Katie: How to know that these are the right order?
+regdatWI$FIPSCode <- c(
+  55001, 55003, 55005, 55007, 55009, 55011,
+  55013, 55015, 55017, 55019, 55021, 55023, 55025, 55027, 55029, 55031, 55033, 55035, 55037, 55039, 55041, 55043, 55045,
+  55047, 55049, 55051, 55053, 55055, 55057, 55059, 55061, 55063, 55065, 55067, 55069, 55071, 55073, 55075, 55077,
+  55078, 55079, 55081, 55083, 55085, 55087, 55089, 55091, 55093, 55095, 55097, 55099, 55101, 55103, 55105, 55107, 55109,
+  55111, 55113, 55115, 55117, 55119, 55121, 55123, 55125, 55127, 55129, 55131, 55133, 55135, 55137, 55139, 55141
+) # replace FIPSCodes
 regdatWI$FIPSCode <- as.character(regdatWI$FIPSCode)
 
-##readding Wisconsin observations
+## re-adding Wisconsin observations
 regdat3 <- bind_rows(regdatWI, regdat2)
 
-#remove missing values
-regdat4 <- regdat3 %>% filter(totact != -88) #remove missing values
-regdat4 <- regdat4 %>% filter(totact != -99) #remove missing values
+# remove missing values
+regdat4 <- regdat3 %>% filter(totact != -88) # remove missing values
+regdat4 <- regdat4 %>% filter(totact != -99) # remove missing values
 regdat4
 
-#merging IL and MO cities with their counties
+# merging IL and MO cities with their counties
 regdat4$FIPSCode <- replace(regdat4$FIPSCode, regdat4$FIPSCode == "17066", "17113")
 regdat4$FIPSCode <- replace(regdat4$FIPSCode, regdat4$FIPSCode == "17140", "17031")
 regdat4$FIPSCode <- replace(regdat4$FIPSCode, regdat4$FIPSCode == "17222", "17163")
@@ -101,106 +109,185 @@ regdat4$FIPSCode <- replace(regdat4$FIPSCode, regdat4$FIPSCode == "17283", "1709
 regdat4$FIPSCode <- replace(regdat4$FIPSCode, regdat4$FIPSCode == "17650", "17201")
 regdat4$FIPSCode <- replace(regdat4$FIPSCode, regdat4$FIPSCode == "29380", "29095")
 
-##states/territories not included fully in this dataset:
-regdat %>% filter(State_Abbr =="AK")
-regdat %>% filter(State_Abbr =="PR")
-regdat %>% filter(State_Abbr =="AS")
-regdat %>% filter(State_Abbr =="GU")
-regdat %>% filter(State_Abbr =="MP")
-regdat %>% filter(State_Abbr =="ND") #no voter registration 
-
+## states/territories not included fully in this dataset:
+regdat4 %>% filter(State_Abbr == "AK")
+regdat4 %>% filter(State_Abbr == "PR")
+regdat4 %>% filter(State_Abbr == "AS")
+regdat4 %>% filter(State_Abbr == "GU")
+regdat4 %>% filter(State_Abbr == "MP")
+regdat4 %>% filter(State_Abbr == "ND") # no voter registration
 ```
+
 
 ```{r ACS VAP by race and ethnicity data}
-tail(County$geoid) #changing to be same format as FIPSCode in regdat
+tail(County$geoid) # changing to be same format as FIPSCode in regdat
 County$FIPSCode <- County$geoid
-County$FIPSCode <- str_sub(County$FIPSCode, start= 10L, end = 15L) #remove everything before S
+County$FIPSCode <- str_sub(County$FIPSCode, start = 10L, end = 15L) # remove everything before S
 County$FIPSCode
 tail(regdat$FIPSCode)
-table(nchar(County$FIPSCode)) ##check 5 digits
+table(nchar(County$FIPSCode)) ## check 5 digits
 colnames(County)
-county1 <- County %>% select("geoname", "FIPSCode", "lntitle", "cvap_est")
-county1 <- pivot_wider(county1, names_from = "lntitle", values_from = "cvap_est")
-County %>% filter(geoname == "Stark County, Illinois") #Stark County registration data is wrong.
-county1$hispanicrate <- county1$`Hispanic or Latino`
-county1$blackafamrate <- county1$`Black or African American Alone`
-county1$amindaknativerate <- county1$`American Indian or Alaska Native Alone`
-county1$nativehawrate <- county1$`Native Hawaiian or Other Pacific Islander Alone` 
-county1$asianrate <- county1$`Asian Alone`
+county0 <- County %>% select("geoname", "FIPSCode", "lntitle", "cvap_est","tot_est","cit_est")
+county1 <- pivot_wider(county0, names_from = "lntitle", values_from = c("cvap_est","tot_est","cit_est"))
+
+County %>% filter(geoname == "Stark County, Illinois") # Stark County registration data is wrong.
+regdat %>% filter(FIPSCode=="17175") %>%
+    dplyr::select(FIPSCode,Jurisdiction_Name,State_Abbr,totreg,totact)
+
+county1 %>% filter(grepl("Stark",geoname,ignore.case=TRUE)) %>%
+    dplyr::select(geoname, FIPSCode,cvap_est_Total,tot_est_Total)
+regdat %>% filter(grepl("Stark",Jurisdiction_Name,ignore.case=TRUE)) %>%
+    dplyr::select(FIPSCode,Jurisdiction_Name,State_Abbr,totreg,totact)
+
+
+## https://data.census.gov/all?q=population+of+Stark+County%2C+IL
+## Too many registered given the population.
+
+county1$hisp_pop <- county1$`cvap_est_Hispanic or Latino`
+county1$nonhisp_pop <- county1$`cvap_est_Not Hispanic or Latino`
+county1$black_pop <- county1$`cvap_est_Black or African American Alone`
+county1$amind_pop <- county1$`cvap_est_American Indian or Alaska Native Alone`
+county1$natpac_pop <- county1$`cvap_est_Native Hawaiian or Other Pacific Islander Alone`
+county1$asian_pop <- county1$`cvap_est_Asian Alone`
+county1$white_pop <-  county1$`cvap_est_White Alone`
+
+## Any mention of Black
+county1$anyblack_pop <- county1$black_pop + county1$`cvap_est_Black or African American and White` + county1$`cvap_est_American Indian or Alaska Native and Black or African American`
+## Any mention of Nat Am
+county1$anyamind_pop <- county1$amind_pop + county1$`cvap_est_American Indian or Alaska Native and Black or African American` + county1$`cvap_est_American Indian or Alaska Native and White`
+## Any mention of Asian
+county1$anyasian_pop <- county1$asian_pop + county1$`cvap_est_Asian and White`
+
+## Any other combo
+county1$othermultirace_pop <- county1$`cvap_est_Remainder of Two or More Race Responses`
 
 ```
 
-
 ```{r merge}
-vregdat <- left_join(regdat4, county1, by = "FIPSCode") #merge datasets
-anti_join(regdat4, county1, by = "FIPSCode") #there are towns in ME that did not get included, all their voter registration rates are high, so I will leave them out for now.
+vregdat <- left_join(regdat4, county1, by = "FIPSCode") # merge datasets
+anti_join(regdat4, county1, by = "FIPSCode") # there are towns in ME that did not get included, all their voter registration rates are high, so I will leave them out for now.
 
-colnames(vregdat) #include all column names that are shared 
-vregdat1 <- vregdat %>% group_by(FIPSCode, geoname, State_Abbr, Total, asianrate, nativehawrate,
-																 amindaknativerate, blackafamrate, hispanicrate) %>%
-	summarise(totact = sum(totact), totreg = sum(totreg))
-vregdat1 #for now, we are not working with Wisconsin, I will have to Wisconsin separately and add it to the whole data set later. (also AK, PR, GU, MP, VI, AS are all state/territory level data, not county)
+## Why have so many cases with repeated FIPSCodes? (Answer: Town level registration information )
+table(table(vregdat$FIPSCode))
+vregdat <- vregdat %>% group_by(FIPSCode) %>% mutate(nfipscode = n()) %>% ungroup()
+vregdat %>% filter(nfipscode > 1) %>% dplyr::select(FIPSCode, geoname, Jurisdiction_Name, State_Abbr, cvap_est_Total, contains("pop"),totreg,totact)
 
-vregdat1$vrateact <- (vregdat1$totact)/(vregdat1$Total)#total active registered
-vregdat1$vratereg <-  (vregdat1$totreg)/(vregdat1$Total) #total registered
-vregdat1$hispanicrate <- (vregdat1$hispanicrate)/(vregdat1$Total)
-vregdat1$asianrate <- (vregdat1$asianrate)/(vregdat1$Total)
-vregdat1$blackafamrate <- (vregdat1$blackafamrate)/(vregdat1$Total)
-vregdat1$amindaknativerate <- (vregdat1$amindaknativerate)/(vregdat1$Total)
-vregdat1$nativehawrate <- (vregdat1$nativehawrate)/(vregdat1$Total)
-min(vregdat1$vratereg, na.rm =  T)
+colnames(vregdat) # include all column names that are shared
+# Katie: I'm proposing a different approach that makes it more clear what is the
+# grouping (FIPS) and what variables are being summarized
+##vregdat1 <- vregdat %>%
+##  group_by(
+##    FIPSCode, geoname, State_Abbr, Total, asian_pop, natpac_pop,
+##    amind_pop, black_pop, hisp_pop
+##  ) %>%
+##  summarise(totact = sum(totact), totreg = sum(totreg), .groups = "drop")
+
+## This next step does nothing for places with county level data but collapses
+## or sums data for places with multiple observations per county.
+sum_fn <- function(x){ if(is.numeric(x) & length(unique(x))>1 ){ sum(x) } else {unique(x)} }
+vregdat1 <- vregdat %>%
+    dplyr::select(FIPSCode, geoname, State_Abbr, cvap_est_Total, tot_est_Total, contains("pop"),totact,totreg) %>%
+  group_by(FIPSCode) %>%
+  summarise(across(.cols=everything(),.fns=sum_fn), .groups = "drop")
+vregdat1 # for now, we are not working with Wisconsin, I will have to Wisconsin separately and add it to the whole data set later. (also AK, PR, GU, MP, VI, AS are all state/territory level data, not county)
+
+## So vregdat1 is all at the level of the county.
+stopifnot(nrow(vregdat1)==length(unique(regdat4$FIPSCode)))
+
+vregdat1$vrateact <- (vregdat1$totact) / (vregdat1$cvap_est_Total) # total active registered
+vregdat1$vratereg <- (vregdat1$totreg) / (vregdat1$cvap_est_Total) # total registered
+## These next are sizes of citizen voting age populations
+vregdat1$hisp_pop <- (vregdat1$hisp_pop) / (vregdat1$cvap_est_Total) 
+vregdat1$asian_pop <- (vregdat1$asian_pop) / (vregdat1$cvap_est_Total)
+vregdat1$black_pop <- (vregdat1$black_pop) / (vregdat1$cvap_est_Total)
+vregdat1$amind_pop <- (vregdat1$amind_pop) / (vregdat1$cvap_est_Total)
+vregdat1$natpac_pop <- (vregdat1$natpac_pop) / (vregdat1$cvap_est_Total)
+vregdat1$natpac_pop <- (vregdat1$white_pop) / (vregdat1$cvap_est_Total)
+
+## Notice some numbers above 1.
+min(vregdat1$vratereg, na.rm = T)
 quantile(vregdat1$vratereg, na.rm = T)
-vregdat1[order(vregdat1$vrateact, decreasing = F),]
-vregdat1[order(vregdat1$vratereg, decreasing = F),] #total registered seems a better measure
-vregdat1 <- vregdat1 %>% filter(vratereg < 2) #there are a few errors in reporting data.
+## about 78% are lower than 1. (but 1-.78 are more than 1)
+ecdf(vregdat1$vratereg)(1)
 
-vregdatquant <- vregdat1 %>% filter(vratereg < .75) #narrows down to places with less than 75% registration rate, the lower quarter quantile. 
-vregdatquant$geoname #places in the US with the lowest voter registration rates. 
-unique(vregdatquant$State_Abbr) #of these, many have same-day voter registration, however those that do not are(https://www.ncsl.org/research/elections-and-campaigns/same-day-registration.aspx):
-#Arkansas
-#North Carolina
-#Florida
-#Georgia
-#Indiana
-#Kansas
-#TN
-#TX
-#LA
-#MO
-#MT
-#NE
-#OH
-#PA
-#WV
-#OK
-#
-#voter registration rates by county starting from lowest:
-vregdat1[order(vregdat1$vratereg, decreasing = F),] 
+vregdat1[order(vregdat1$vrateact, decreasing = F), ]
+vregdat1[order(vregdat1$vratereg, decreasing = F), ] # total registered seems a better measure
+## This next not necessary because all numbers are less than 2.
+#vregdat1 <- vregdat1 %>% filter(vratereg < 2) # there are a few errors in reporting data.
+
+vregdatquant <- vregdat1 %>% filter(vratereg < .75) # narrows down to places with less than 75% registration rate, the lower quarter quantile.
+vregdatquant$geoname # places in the US with the lowest voter registration rates.
+unique(vregdatquant$State_Abbr) # of these, many have same-day voter registration, however those that do not are(https://www.ncsl.org/research/elections-and-campaigns/same-day-registration.aspx):
+# Arkansas
+# North Carolina
+# Florida
+# Georgia
+# Indiana
+# Kansas
+# TN
+# TX
+# LA
+# MO
+# MT
+# NE
+# OH
+# PA
+# WV
+# OK
+
+# Same day and Election Day registration States
+# from https://www.ncsl.org/research/elections-and-campaigns/same-day-registration.aspx
+
+same_day_elect_day_reg_states <-
+    c("ME","NH","VT","CT","DC","MI","MD","VA","NC","IL","WI","IA","MN","MT","WY","CO","UT","NM","WA","ID","NV","CA","HI")
+
+vregdat1$same_day_state <- ifelse(vregdat1$State_Abbr %in% same_day_elect_day_reg_states,1,0)
+
+## https://www.ncsl.org/research/elections-and-campaigns/automatic-voter-registration.aspx
+
+automatic_reg_states <-c("AK", "CA","CO","CT","DE","DC","GA","HI","IL","ME","MD","MA","MI","NJ","NM","NY","NV","OR","RI","VT","VA","WA","WV")
+vregdat1$automatic_state <- ifelse(vregdat1$State_Abbr %in% automatic_reg_states,1,0)
+
+# voter registration rates by county starting from lowest:
+vregdat1[order(vregdat1$vratereg, decreasing = F), ]
+```
+
+Save `vregdat1` for analysis and exploration
+
+```{r}
+
+save(vregdat1,file=here::here("Analysis","vregdat1.rda"))
+
 ```
 
 
 ```{r figures}
 vreg_freqplot <- ggplot(data = vregdatquant, mapping = aes(vratereg)) +
-	geom_histogram() 	#frequency of voter registration rates by county
+  geom_histogram() # frequency of voter registration rates by county
 vreg_freqplot
-ggplot(data = vregdatquant, mapping = aes(blackafamrate, vratereg)) +
-	geom_point() +
-	geom_label(aes(label=geoname))
-ggplot(data = vregdatquant, mapping = aes(asianrate, vratereg)) +
-	geom_point()+
-	geom_label(aes(label=geoname))
-ggplot(data = vregdatquant, mapping = aes(hispanicrate, vratereg)) +
-	geom_point() +
-	geom_label(aes(label=geoname))
-ggplot(data = vregdatquant, mapping = aes(nativehawrate, vratereg)) +
-	geom_point() +
-	geom_label(aes(label=geoname))
-ggplot(data = vregdat1, mapping = aes(amindaknativerate, vratereg)) +
-	geom_point()+
-	geom_label(aes(label=geoname))
+
+ggplot(data = vregdatquant, mapping = aes(black_pop, vratereg)) +
+  geom_point() +
+  geom_label(aes(label = geoname))
+
+ggplot(data = vregdatquant, mapping = aes(asian_pop, vratereg)) +
+  geom_point() +
+  geom_label(aes(label = geoname))
+
+ggplot(data = vregdatquant, mapping = aes(hisp_pop, vratereg)) +
+  geom_point() +
+  geom_label(aes(label = geoname))
+
+ggplot(data = vregdatquant, mapping = aes(natpac_pop, vratereg)) +
+  geom_point() +
+  geom_label(aes(label = geoname))
+
+ggplot(data = vregdat1, mapping = aes(amind_pop, vratereg)) +
+  geom_point() +
+  geom_label(aes(label = geoname))
 ```
 
-
+# Notes and Extra Stuff
 
 Important Variables from EAVS data:
 A1: Registered Voters
