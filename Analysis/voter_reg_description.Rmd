@@ -65,8 +65,12 @@ Boxplot:
 
 ```{r}
 
-vregdat1$same_day_stateF <- factor(vregdat1$same_day_state,labels=c("Same Day Reg","No Same Day Reg"))
-vregdat1$automatic_stateF <- factor(vregdat1$automatic_state,labels=c("Automatic Reg","No Automatic Reg"))
+vregdat1$same_day_stateF <- factor(vregdat1$same_day_state,labels=c("No Same Day Reg","Same Day Reg"))
+vregdat1$automatic_stateF <- factor(vregdat1$automatic_state,labels=c("No Automatic Reg","Automatic Reg"))
+
+with(vregdat1,table(same_day_state,same_day_stateF,exclude=c()))
+with(vregdat1,table(same_day_state,automatic_stateF,exclude=c()))
+
 bplot_dat <- vregdat1 %>% group_by(State_Abbr) %>% filter(!is.na(vratereg) & vratereg < 2 & State_Abbr!="DC") %>% summarize(min=min(vratereg),q25=quantile(vratereg,.25),med=median(vratereg),mean=mean(vratereg),q75=quantile(vratereg,.75),max=max(vratereg),easy_reg=unique(interaction(same_day_stateF,automatic_stateF))) %>% arrange(desc(med)) %>% print(n=100)
 bplot_dat$stateF <- factor(bplot_dat$State_Abbr)
 
@@ -89,7 +93,8 @@ ggsave(bp,file=here::here("Analysis","state_reg_boxplot.png"),dpi=600)
 
 ```
 
-
+Think about some maps for slides on Wednesday. Ben says to use the tigris
+approach.
 
 ```{r}
 
@@ -119,6 +124,7 @@ scale_fill_continuous(
 
 small_map_2 <- small_map + coord_cartesian() + facet_grid(cols=vars(state), drop = T, scales="free_x", space="free_x")
 
+ggsave(small_map_2,file=here::here("Analysis","PA_UTAH_counties.png"),dpi=600)
 
 usa_counties <- map_data('county')
 usa_counties <- left_join(

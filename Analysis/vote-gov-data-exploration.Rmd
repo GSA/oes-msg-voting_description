@@ -237,6 +237,7 @@ unique(vregdatquant$State_Abbr) # of these, many have same-day voter registratio
 
 # Same day and Election Day registration States
 # from https://www.ncsl.org/research/elections-and-campaigns/same-day-registration.aspx
+# see also https://www.rockthevote.org/how-to-vote/same-day-voter-registration/
 
 same_day_elect_day_reg_states <-
     c("ME","NH","VT","CT","DC","MI","MD","VA","NC","IL","WI","IA","MN","MT","WY","CO","UT","NM","WA","ID","NV","CA","HI")
@@ -258,33 +259,6 @@ Save `vregdat1` for analysis and exploration
 
 save(vregdat1,file=here::here("Analysis","vregdat1.rda"))
 
-```
-
-
-```{r figures}
-vreg_freqplot <- ggplot(data = vregdatquant, mapping = aes(vratereg)) +
-  geom_histogram() # frequency of voter registration rates by county
-vreg_freqplot
-
-ggplot(data = vregdatquant, mapping = aes(black_pop, vratereg)) +
-  geom_point() +
-  geom_label(aes(label = geoname))
-
-ggplot(data = vregdatquant, mapping = aes(asian_pop, vratereg)) +
-  geom_point() +
-  geom_label(aes(label = geoname))
-
-ggplot(data = vregdatquant, mapping = aes(hisp_pop, vratereg)) +
-  geom_point() +
-  geom_label(aes(label = geoname))
-
-ggplot(data = vregdatquant, mapping = aes(natpac_pop, vratereg)) +
-  geom_point() +
-  geom_label(aes(label = geoname))
-
-ggplot(data = vregdat1, mapping = aes(amind_pop, vratereg)) +
-  geom_point() +
-  geom_label(aes(label = geoname))
 ```
 
 # Notes and Extra Stuff
