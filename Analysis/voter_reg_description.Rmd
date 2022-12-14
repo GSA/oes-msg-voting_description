@@ -98,7 +98,7 @@ approach.
 
 ```{r}
 
-map_dat <- vregdat1 %>% dplyr::select(fips,vratereg,same_day_state,automatic_state,state) %>% filter(vratereg < 2)
+map_dat <- vregdat1 %>% dplyr::select(fips,vratereg,same_day_state,automatic_state,state,geoname) %>% filter(vratereg < 2)
 map_dat$vratereg_rank <- rank(map_dat$vratereg)
 
 full_map_rank <- plot_usmap(regions="counties",data=map_dat,values="vratereg_rank")
@@ -114,24 +114,52 @@ not_same_not_auto_map
 
 not_same_not_auto_map
 
+small_map_dat <- filter(map_dat,state %in% c("PA","MI", "VA", "WA")) 
+
+small_map_dat <- small_map_dat %>%  mutate(vratereg_log=log(vratereg),
+        vratereg_exp=exp(vratereg))
+
 small_map <- plot_usmap(regions="counties",
-    data=filter(map_dat,state %in% c("PA","UT")),
-    include=c("PA","UT"),
+    data=small_map_dat,
+    include=c("PA","MI","VA","WA"),
     values="vratereg")+
-scale_fill_continuous(
-    low = "white", high = "blue", name = "% Reg (2020)", label = scales::comma
+scale_fill_continuous(type="viridis", name = "% Reg (2020)"#, label = scales::comma
 )
 
-small_map_2 <- small_map + coord_cartesian() + facet_grid(cols=vars(state), drop = T, scales="free_x", space="free_x")
+small_map_2 <- small_map + coord_cartesian() + facet_grid(cols=vars(state), drop = T, scales="free", space="free")
+small_map_2
 
-ggsave(small_map_2,file=here::here("Analysis","PA_UTAH_counties.png"),dpi=600)
+ggsave(small_map_2,file=here::here("Analysis","selected_states_counties.png"),dpi=600)
 
-usa_counties <- map_data('county')
-usa_counties <- left_join(
+small_counties <- map_data('county') %>% filter(region %in% c("pennsylvania","utah"))
 
 ```
 
 
 
 
+```{r}
+bplot_dat$selected_states <- factor(as.numeric(bplot_dat$stateF %in% c("PA","MI", "VA", "WA")))
+
+
+bp_small <-  ggplot(bplot_dat,aes(color=selected_states,fill=selected_states)) +
+    geom_boxplot(aes(y=reorder(stateF,mean),
+                 xmax = max,
+                 xupper = q75,
+                 x = med,
+                 xmiddle = med,
+                 xlower = q25,
+                 xmin = min), stat = "identity") +
+         theme_bw() +
+         facet_wrap(~easy_reg,scales="free")+
+         xlim(.1,1.2) +
+         ylab("") +
+         xlab("Proportion of Citizen of Voting Age Registered to Vote (EAC+Census Data)") + theme(legend.position = "none")
+bp_small
+
+ggsave(bp_small,file=here::here("Analysis","selected_state_reg_boxplot.png"),dpi=600)
+
+
+
+```
 
